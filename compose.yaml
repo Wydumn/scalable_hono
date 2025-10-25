@@ -4,16 +4,26 @@ services:
     restart: unless-stopped
     volumes:
       - ./server:/app
-    ports:
-      - 8000:8000
+    env_file:
+      - project.env
+    depends_on:
+      - database
+    deploy:
+      mode: replicated
+      replicas: 2
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.server-router.entrypoints=web
+      - traefik.http.routers.server-router.rule=PathPrefix(`/`)
+      - traefik.http.services.server-service.loadbalancer.server.port=8000
 
   client:
     build: client
     restart: unless-stopped
     volumes:
-      - ./client:/app
+      - ./client/src:/app/src
     ports:
-      - 4321:4321
+      - 5173:5173
     depends_on:
       - server
 
@@ -24,3 +34,45 @@ services:
       - ./k6-tests/tests:/tests
     depends_on:
       - client
+
+  database:
+    container_name: postgresql_database
+    image: postgres:17.5
+    restart: unless-stopped
+    env_file:
+      - project.env
+    command: >
+      postgres
+      -c shared_preload_libraries=auto_explain,pg_stat_statements
+      -c auto_explain.log_min_duration=10
+    # log statements that take more than 10ms
+
+  database-migrations:
+    image: flyway/flyway:11.10
+    env_file:
+      - project.env
+    depends_on:
+      - database
+    volumes:
+      - ./database-migrations:/flyway/db/migration
+    command: -connectRetries=60 -baselineOnMigrate=true migrate
+    labels:
+      - traefik.enable=false
+
+  redis:
+    image: redis:7.4.2
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+
+  traefik:
+    image: traefik:v3.4
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:8000"
+    ports:
+      - 8080:8080
+      - 8000:8000
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
