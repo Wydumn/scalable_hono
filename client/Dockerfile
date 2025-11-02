@@ -4,8 +4,8 @@ WORKDIR /app
 
 COPY package.json .
 
-RUN DENO_FUTURE=1 deno install
+RUN DENO_FUTURE=1 deno install --allow-scripts
 
 COPY . .
 
-CMD [ "run", "dev", "--host"]
+CMD [ "task", "dev", "--host" ]

@@ -1,0 +1,9 @@
+---
+import FirstSvelteComponent from "../components/FirstSvelteComponent.svelte"
+import Ping from "../components/Ping.svelte"
+const greet = Astro.props.greet || "component";
+---
+
+<p>Hello {greet}!</p>
+<!-- <FirstSvelteComponent client:visible /> -->
+<Ping client:load />

@@ -8,24 +8,28 @@ services:
       - project.env
     depends_on:
       - database
+      - redis
     deploy:
       mode: replicated
-      replicas: 2
+      replicas: 1
     labels:
       - traefik.enable=true
       - traefik.http.routers.server-router.entrypoints=web
-      - traefik.http.routers.server-router.rule=PathPrefix(`/`)
+      - traefik.http.routers.server-router.rule=PathPrefix(`/api`)
       - traefik.http.services.server-service.loadbalancer.server.port=8000
 
   client:
     build: client
     restart: unless-stopped
     volumes:
-      - ./client/src:/app/src
-    ports:
-      - 5173:5173
+      - ./client:/app
     depends_on:
       - server
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.client-router.entrypoints=web
+      - traefik.http.routers.client-router.rule=PathPrefix(`/`)
+      - traefik.http.services.client-service.loadbalancer.server.port=4321
 
   k6-tests:
     entrypoint: "/bin/true"
@@ -71,8 +75,27 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--entrypoints.web.address=:8000"
+      - "--metrics.otlp=true"
+      - "--metrics.otlp.http.endpoint=http://lgtm:4318/v1/metrics"
     ports:
       - 8080:8080
       - 8000:8000
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  # consumer-server:
+  #   build: consumer-server
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./consumer-server:/app
+  #   env_file:
+  #     - project.env
+  #   depends_on:
+  #     - redis
+  #     - database
+
+  lgtm:
+    image: grafana/otel-lgtm:0.11.14
+    ports:
+      - "3000:3000"
+      - "4318:4318"
